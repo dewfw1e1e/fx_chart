@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>FX Charts</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #131722; font-family: Arial, sans-serif; display: flex; flex-direction: column; height: 100vh; }
+
+    #controls {
+      background: #1e222d;
+      padding: 8px 14px;
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+      border-bottom: 1px solid #2a2e39;
+      flex-shrink: 0;
+    }
+
+    .label { color: #787b86; font-size: 12px; margin-right: 2px; }
+
+    button {
+      padding: 5px 12px;
+      background: #2a2e39;
+      color: #9598a1;
+      border: 1px solid #363a45;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    button.active { background: #2962ff; color: #fff; border-color: #2962ff; }
+    button:hover { color: #fff; }
+
+    .sep { color: #363a45; margin: 0 4px; }
+
+    #loading {
+      color: #787b86;
+      font-size: 13px;
+      text-align: center;
+      padding: 40px;
+      display: none;
+    }
+
+    #chart { flex: 1; width: 100%; }
+  </style>
+</head>
+<body>
+
+<div id="controls">
+  <span class="label">Pair:</span>
+  <button class="active" onclick="select('pair', 'AUDUSD', this)">AUD/USD</button>
+  <button onclick="select('pair', 'EURUSD', this)">EUR/USD</button>
+  <button onclick="select('pair', 'GBPJPY', this)">GBP/JPY</button>
+  <button onclick="select('pair', 'USDJPY', this)">USD/JPY</button>
+  <span class="sep">|</span>
+  <span class="label">Interval:</span>
+  <button onclick="select('tf', '60min', this)">1H</button>
+  <button class="active" onclick="select('tf', 'daily', this)">1D</button>
+  <button onclick="select('tf', 'weekly', this)">1W</button>
+  <span class="sep">|</span>
+  <span id="status" style="color:#787b86;font-size:12px;">Loading...</span>
+</div>
+
+<div id="loading">Loading chart data...</div>
+<div id="chart"></div>
+
+<script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
+<script>
+  var API_KEY = 'QS0A7UBN9OCYY2M7';
+  var curPair = 'AUDUSD';
+  var curTF = 'daily';
+  var chart = null;
+  var candleSeries = null;
+
+  // Init chart
+  chart = LightweightCharts.createChart(document.getElementById('chart'), {
+    layout: { background: { color: '#131722' }, textColor: '#d1d4dc' },
+    grid: { vertLines: { color: '#1e222d' }, horzLines: { color: '#1e222d' } },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    rightPriceScale: { borderColor: '#2a2e39' },
+    timeScale: { borderColor: '#2a2e39', timeVisible: true },
+    width: document.getElementById('chart').offsetWidth,
+    height: document.getElementById('chart').offsetHeight,
+  });
+
+  candleSeries = chart.addCandlestickSeries({
+    upColor: '#26a69a',
+    downColor: '#ef5350',
+    borderVisible: false,
+    wickUpColor: '#26a69a',
+    wickDownColor: '#ef5350',
+  });
+
+  window.addEventListener('resize', function() {
+    chart.applyOptions({
+      width: document.getElementById('chart').offsetWidth,
+      height: document.getElementById('chart').offsetHeight,
+    });
+  });
+
+  function select(type, val, btn) {
+    if (type === 'pair') {
+      curPair = val;
+      document.querySelectorAll('[onclick*="pair"]').forEach(function(b) { b.classList.remove('active'); });
+    } else {
+      curTF = val;
+      document.querySelectorAll('[onclick*="tf"]').forEach(function(b) { b.classList.remove('active'); });
+    }
+    btn.classList.add('active');
+    loadData();
+  }
+
+  function loadData() {
+    var from = curPair.slice(0, 3);
+    var to = curPair.slice(3, 6);
+    var fn = curTF === 'daily' ? 'FX_DAILY' : curTF === 'weekly' ? 'FX_WEEKLY' : 'FX_INTRADAY';
+    var url = 'https://www.alphavantage.co/query?function=' + fn
+      + '&from_symbol=' + from
+      + '&to_symbol=' + to
+      + '&apikey=' + API_KEY
+      + (curTF === '60min' ? '&interval=60min' : '')
+      + '&outputsize=compact';
+
+    document.getElementById('status').textContent = 'Loading...';
+
+    fetch(url)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var seriesKey = Object.keys(data).find(function(k) { return k.indexOf('Time Series') > -1; });
+        if (!seriesKey) {
+          document.getElementById('status').textContent = 'Error: ' + JSON.stringify(data).slice(0, 80);
+          return;
+        }
+        var raw = data[seriesKey];
+        var candles = Object.keys(raw).map(function(date) {
+          return {
+            time: date,
+            open: parseFloat(raw[date]['1. open']),
+            high: parseFloat(raw[date]['2. high']),
+            low: parseFloat(raw[date]['3. low']),
+            close: parseFloat(raw[date]['4. close']),
+          };
+        }).sort(function(a, b) { return a.time > b.time ? 1 : -1; });
+
+        candleSeries.setData(candles);
+        chart.timeScale().fitContent();
+        document.getElementById('status').textContent = curPair.slice(0,3) + '/' + curPair.slice(3,6) + ' · ' + candles.length + ' candles loaded';
+      })
+      .catch(function(e) {
+        document.getElementById('status').textContent = 'Network error';
+      });
+  }
+
+  loadData();
+</script>
+</body>
+</html>
