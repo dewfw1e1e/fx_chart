@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>FX Charts</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #131722; font-family: Arial, sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+    #controls {
+      background: #1e222d;
+      padding: 8px 14px;
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+      border-bottom: 1px solid #2a2e39;
+      flex-shrink: 0;
+    }
+
+    .label { color: #787b86; font-size: 12px; margin-right: 2px; }
+    .sep { color: #363a45; margin: 0 6px; font-size: 16px; }
+
+    button {
+      padding: 5px 12px;
+      background: #2a2e39;
+      color: #9598a1;
+      border: 1px solid #363a45;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    button.active { background: #2962ff; color: #fff; border-color: #2962ff; }
+    button:hover { color: #fff; }
+
+    /* Investment bar */
+    #inv-bar {
+      background: #1a1d27;
+      border-bottom: 1px solid #2a2e39;
+      padding: 6px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+
+    #inv-bar label { color: #787b86; font-size: 12px; }
+
+    #inv-amount {
+      background: #2a2e39;
+      border: 1px solid #363a45;
+      color: #fff;
+      padding: 4px 10px;
+      border-radius: 3px;
+      font-size: 13px;
+      width: 120px;
+    }
+
+    #inv-amount:focus { outline: none; border-color: #2962ff; }
+
+    #entry-display {
+      color: #787b86;
+      font-size: 12px;
+    }
+
+    /* P&L tooltip */
+    #pnl-box {
+      position: absolute;
+      background: rgba(20, 24, 35, 0.95);
+      border: 1px solid #2a2e39;
+      border-radius: 4px;
+      padding: 10px 14px;
+      pointer-events: none;
+      z-index: 100;
+      display: none;
+      min-width: 160px;
+    }
+
+    #pnl-box .pnl-pair { color: #787b86; font-size: 11px; margin-bottom: 6px; }
+    #pnl-box .pnl-price { color: #d1d4dc; font-size: 13px; font-weight: bold; margin-bottom: 8px; }
+
+    #pnl-box .pnl-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      font-size: 12px;
+      margin-bottom: 3px;
+    }
+
+    #pnl-box .pnl-label { color: #787b86; }
+    #pnl-profit { color: #26a69a; font-weight: bold; }
+    #pnl-loss { color: #ef5350; font-weight: bold; }
+
+    #pnl-box .pnl-divider { border-top: 1px solid #2a2e39; margin: 6px 0; }
+
+    #chart-wrap { flex: 1; position: relative; min-height: 0; }
+    #chart { width: 100%; height: 100%; }
+
+    #status-bar {
+      background: #1e222d;
+      border-top: 1px solid #2a2e39;
+      padding: 4px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    #status-bar span { color: #787b86; font-size: 11px; }
+    #status-pair { color: #2962ff; }
+  </style>
+</head>
+<body>
+
+<div id="controls">
+  <span class="label">Pair:</span>
+  <button class="active" data-pair="AUDUSD" data-from="AUD" data-to="USD">AUD/USD</button>
+  <button data-pair="EURUSD" data-from="EUR" data-to="USD">EUR/USD</button>
+  <button data-pair="GBPJPY" data-from="GBP" data-to="JPY">GBP/JPY</button>
+  <button data-pair="USDJPY" data-from="USD" data-to="JPY">USD/JPY</button>
+  <span class="sep">|</span>
+  <span class="label">Interval:</span>
+  <button class="active" data-tf="daily" data-tflabel="1D">1D</button>
+  <button data-tf="weekly" data-tflabel="1W">1W</button>
+  <span class="sep">|</span>
+  <span id="status-msg" style="color:#787b86;font-size:12px;">Loading...</span>
+</div>
+
+<div id="inv-bar">
+  <label>💰 Investment Amount (USD):</label>
+  <input type="number" id="inv-amount" value="1000" min="1" placeholder="e.g. 1000" />
+  <span id="entry-display" style="color:#787b86;font-size:12px;">Hover over chart to see P&L</span>
+</div>
+
+<div id="chart-wrap">
+  <div id="chart"></div>
+  <div id="pnl-box">
+    <div class="pnl-pair" id="pnl-pair-label">AUD/USD</div>
+    <div class="pnl-price" id="pnl-price-label">Price: --</div>
+    <div class="pnl-divider"></div>
+    <div class="pnl-row">
+      <span class="pnl-label">If bought at open:</span>
+    </div>
+    <div class="pnl-row">
+      <span class="pnl-label">Profit (if close ↑):</span>
+      <span id="pnl-profit">--</span>
+    </div>
+    <div class="pnl-row">
+      <span class="pnl-label">Loss (if close ↓):</span>
+      <span id="pnl-loss">--</span>
+    </div>
+    <div class="pnl-divider"></div>
+    <div class="pnl-row">
+      <span class="pnl-label">Open:</span>
+      <span id="pnl-open" style="color:#d1d4dc;">--</span>
+    </div>
+    <div class="pnl-row">
+      <span class="pnl-label">High:</span>
+      <span id="pnl-high" style="color:#26a69a;">--</span>
+    </div>
+    <div class="pnl-row">
+      <span class="pnl-label">Low:</span>
+      <span id="pnl-low" style="color:#ef5350;">--</span>
+    </div>
+    <div class="pnl-row">
+      <span class="pnl-label">Close:</span>
+      <span id="pnl-close" style="color:#d1d4dc;">--</span>
+    </div>
+  </div>
+</div>
+
+<div id="status-bar">
+  <span id="status-pair">AUD/USD · 1D</span>
+  <span id="status-count"></span>
+</div>
+
+<script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
+<script>
+  var API_KEY = 'QS0A7UBN9OCYY2M7';
+  var curFrom = 'AUD', curTo = 'USD', curPair = 'AUDUSD';
+  var curTF = 'daily', curTFLabel = '1D';
+  var chartData = [];
+
+  // Create chart
+  var chartEl = document.getElementById('chart');
+  var chart = LightweightCharts.createChart(chartEl, {
+    layout: { background: { color: '#131722' }, textColor: '#d1d4dc' },
+    grid: { vertLines: { color: '#1e222d' }, horzLines: { color: '#1e222d' } },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    rightPriceScale: { borderColor: '#2a2e39' },
+    timeScale: { borderColor: '#2a2e39', timeVisible: true },
+    width: chartEl.offsetWidth,
+    height: chartEl.offsetHeight,
+  });
+
+  var candleSeries = chart.addCandlestickSeries({
+    upColor: '#26a69a',
+    downColor: '#ef5350',
+    borderVisible: false,
+    wickUpColor: '#26a69a',
+    wickDownColor: '#ef5350',
+  });
+
+  window.addEventListener('resize', function() {
+    chart.applyOptions({ width: chartEl.offsetWidth, height: chartEl.offsetHeight });
+  });
+
+  // Crosshair P&L tooltip
+  var pnlBox = document.getElementById('pnl-box');
+
+  chart.subscribeCrosshairMove(function(param) {
+    if (!param || !param.point || !param.seriesData) {
+      pnlBox.style.display = 'none';
+      return;
+    }
+
+    var data = param.seriesData.get(candleSeries);
+    if (!data) { pnlBox.style.display = 'none'; return; }
+
+    var inv = parseFloat(document.getElementById('inv-amount').value) || 1000;
+    var open = data.open;
+    var high = data.high;
+    var low = data.low;
+    var close = data.close;
+
+    // P&L: how much would investment gain/lose
+    var units = inv / open;
+    var profitAmt = ((high - open) / open * inv).toFixed(2);
+    var lossAmt = ((low - open) / open * inv).toFixed(2);
+    var closeChange = ((close - open) / open * inv).toFixed(2);
+
+    document.getElementById('pnl-pair-label').textContent = curFrom + '/' + curTo;
+    document.getElementById('pnl-price-label').textContent = 'Cross: ' + close.toFixed(5);
+    document.getElementById('pnl-open').textContent = open.toFixed(5);
+    document.getElementById('pnl-high').textContent = high.toFixed(5);
+    document.getElementById('pnl-low').textContent = low.toFixed(5);
+    document.getElementById('pnl-close').textContent = close.toFixed(5);
+
+    document.getElementById('pnl-profit').textContent = '+$' + profitAmt;
+    document.getElementById('pnl-loss').textContent = '$' + lossAmt;
+
+    // Position the box near crosshair
+    var x = param.point.x;
+    var y = param.point.y;
+    var boxW = 180;
+    var wrapW = document.getElementById('chart-wrap').offsetWidth;
+    var left = x + 16;
+    if (left + boxW > wrapW) left = x - boxW - 10;
+
+    pnlBox.style.left = left + 'px';
+    pnlBox.style.top = Math.max(0, y - 60) + 'px';
+    pnlBox.style.display = 'block';
+  });
+
+  // Load data
+  function loadData() {
+    document.getElementById('status-msg').textContent = 'Loading...';
+    pnlBox.style.display = 'none';
+
+    var fn = curTF === 'weekly' ? 'FX_WEEKLY' : 'FX_DAILY';
+    var url = 'https://www.alphavantage.co/query?function=' + fn
+      + '&from_symbol=' + curFrom
+      + '&to_symbol=' + curTo
+      + '&apikey=' + API_KEY
+      + '&outputsize=compact';
+
+    fetch(url)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var seriesKey = Object.keys(data).find(function(k) { return k.indexOf('Time Series') > -1; });
+        if (!seriesKey) {
+          document.getElementById('status-msg').textContent = 'API Error - try again in 1 min';
+          return;
+        }
+        var raw = data[seriesKey];
+        chartData = Object.keys(raw).map(function(date) {
+          return {
+            time: date,
+            open: parseFloat(raw[date]['1. open']),
+            high: parseFloat(raw[date]['2. high']),
+            low: parseFloat(raw[date]['3. low']),
+            close: parseFloat(raw[date]['4. close']),
+          };
+        }).sort(function(a, b) { return a.time > b.time ? 1 : -1; });
+
+        candleSeries.setData(chartData);
+        chart.timeScale().fitContent();
+        document.getElementById('status-msg').textContent = chartData.length + ' candles · hover to see P&L';
+        document.getElementById('status-pair').textContent = curFrom + '/' + curTo + ' · ' + curTFLabel;
+        document.getElementById('status-count').textContent = 'Data: Alpha Vantage';
+      })
+      .catch(function() {
+        document.getElementById('status-msg').textContent = 'Network error';
+      });
+  }
+
+  // Pair buttons
+  document.querySelectorAll('[data-pair]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      curPair = btn.getAttribute('data-pair');
+      curFrom = btn.getAttribute('data-from');
+      curTo   = btn.getAttribute('data-to');
+      document.querySelectorAll('[data-pair]').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      loadData();
+    });
+  });
+
+  // TF buttons
+  document.querySelectorAll('[data-tf]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      curTF = btn.getAttribute('data-tf');
+      curTFLabel = btn.getAttribute('data-tflabel');
+      document.querySelectorAll('[data-tf]').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      loadData();
+    });
+  });
+
+  loadData();
+</script>
+</body>
+</html>
