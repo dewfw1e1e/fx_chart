@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Forex Trading Dashboard — Team 48 | Duke Fuqua MQM-BA</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #131722; font-family: Arial, sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+    #header {
+      background: #1a1d27;
+      border-bottom: 1px solid #2a2e39;
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    #header h1 { color: #d1d4dc; font-size: 13px; font-weight: 600; }
+    #header span { color: #787b86; font-size: 11px; }
+
+    #tabs {
+      background: #131722;
+      border-bottom: 1px solid #2a2e39;
+      display: flex;
+      flex-shrink: 0;
+    }
+    .tab {
+      padding: 10px 24px;
+      color: #787b86;
+      font-size: 13px;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+      user-select: none;
+    }
+    .tab:hover { color: #d1d4dc; }
+    .tab.active { color: #2962ff; border-bottom-color: #2962ff; }
+
+    .panel { display: none; flex: 1; flex-direction: column; min-height: 0; overflow: hidden; }
+    .panel.active { display: flex; }
+
+    /* Power BI */
+    #pbi-frame { width: 100%; flex: 1; border: none; }
+
+    /* FX controls */
+    #controls {
+      background: #1e222d;
+      padding: 8px 14px;
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+      border-bottom: 1px solid #2a2e39;
+      flex-shrink: 0;
+    }
+    .label { color: #787b86; font-size: 12px; margin-right: 2px; }
+    .sep { color: #363a45; margin: 0 6px; font-size: 16px; }
+
+    button {
+      padding: 5px 12px;
+      background: #2a2e39;
+      color: #9598a1;
+      border: 1px solid #363a45;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    button.active { background: #2962ff; color: #fff; border-color: #2962ff; }
+    button:hover { color: #fff; }
+
+    #chart-wrap { flex: 1; position: relative; min-height: 0; }
+    #tv-widget { width: 100%; height: 100%; }
+  </style>
+</head>
+<body>
+
+<div id="header">
+  <h1>📊 Forex Trading Dashboard — Team 48 | Duke Fuqua MQM-BA Capstone</h1>
+  <span>Live data · TradingView</span>
+</div>
+
+<div id="tabs">
+  <div class="tab active" id="tab-pbi" onclick="switchTab('pbi')">📈 Power BI Dashboard</div>
+  <div class="tab" id="tab-fx" onclick="switchTab('fx')">🕯️ Live FX K-Line Chart</div>
+</div>
+
+<!-- Power BI Panel -->
+<div class="panel active" id="panel-pbi">
+  <iframe id="pbi-frame"
+    src="https://app.powerbi.com/view?r=eyJrIjoiMWE0ZDE2ZGEtOWQ1Zi00NzgxLTlhZWYtMmJlMGFkMTczNjU4IiwidCI6ImNiNzJjNTRlLTRhMzEtNGQ5ZS1iMTRhLTFlYTM2ZGZhYzk0YyIsImMiOjF9"
+    frameborder="0"
+    allowFullScreen="true">
+  </iframe>
+</div>
+
+<!-- FX Chart Panel -->
+<div class="panel" id="panel-fx">
+  <div id="controls">
+    <span class="label">Pair:</span>
+    <button class="active" data-symbol="FX:AUDUSD">AUD/USD</button>
+    <button data-symbol="FX:EURUSD">EUR/USD</button>
+    <button data-symbol="FX:GBPJPY">GBP/JPY</button>
+    <button data-symbol="FX:USDJPY">USD/JPY</button>
+    <span class="sep">|</span>
+    <span class="label">Interval:</span>
+    <button data-iv="60" class="iv-btn">1H</button>
+    <button data-iv="240" class="iv-btn">4H</button>
+    <button data-iv="D" class="iv-btn active">1D</button>
+    <button data-iv="W" class="iv-btn">1W</button>
+    <span class="sep">|</span>
+    <span id="status-msg" style="color:#787b86;font-size:12px;">Live · TradingView</span>
+  </div>
+
+  <div id="chart-wrap">
+    <div id="tv-widget"></div>
+  </div>
+</div>
+
+<script>
+  var curSymbol = 'FX:AUDUSD';
+  var curIv = 'D';
+
+  function switchTab(tab) {
+    document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+    document.querySelectorAll('.panel').forEach(function(p) { p.classList.remove('active'); });
+    document.getElementById('tab-' + tab).classList.add('active');
+    document.getElementById('panel-' + tab).classList.add('active');
+  }
+
+  function buildWidget() {
+    var container = document.getElementById('tv-widget');
+    container.innerHTML = '';
+    var script = document.createElement('script');
+    script.type = 'text/javascript';
+    script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
+    script.async = true;
+    script.innerHTML = JSON.stringify({
+      autosize: true,
+      symbol: curSymbol,
+      interval: curIv,
+      timezone: 'Etc/UTC',
+      theme: 'dark',
+      style: '1',
+      locale: 'en',
+      enable_publishing: false,
+      hide_top_toolbar: false,
+      hide_legend: false,
+      hide_volume: false,
+      support_host: 'https://www.tradingview.com'
+    });
+    container.appendChild(script);
+  }
+
+  // Pair buttons
+  document.querySelectorAll('[data-symbol]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      curSymbol = btn.getAttribute('data-symbol');
+      document.querySelectorAll('[data-symbol]').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      buildWidget();
+    });
+  });
+
+  // Interval buttons
+  document.querySelectorAll('.iv-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      curIv = btn.getAttribute('data-iv');
+      document.querySelectorAll('.iv-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      buildWidget();
+    });
+  });
+
+  buildWidget();
+</script>
+</body>
+</html>
